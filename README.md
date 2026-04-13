@@ -1,98 +1,184 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Project Manager API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST para gerenciamento de projetos, desenvolvida para o desafio técnico.  
+A solução cobre criação, listagem, busca, edição, remoção e ordenação de projetos, com persistência em PostgreSQL e arquitetura organizada para facilitar manutenção, testes e evolução.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 1. Visão geral
 
-## Description
+A aplicação foi construída com foco em separar responsabilidade de requests HTTP, regras de negócio e persistência.  
+Na prática, isso significa que o `controller` recebe e valida a requisição, o `service` coordena o caso de uso e a entidade de domínio concentra as regras de negócio.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Essa organização foi escolhida para reduzir acoplamento e tornar o código mais fácil de testar e evoluir. A estrutura prioriza legibilidade e delimitação explícita entre camadas.
 
-## Project setup
+## 2. Stack
 
-```bash
-$ npm install
+- **Node.js + TypeScript**
+- **NestJS**
+- **TypeORM**
+- **PostgreSQL**
+- **Jest + Supertest**
+- **Docker Compose**
+
+A escolha do NestJS foi motivada pela organização, injeção de dependência e camadas bem definidas. O TypeORM foi usado pelo type-safety e gerenciamento fácil de migrations.
+
+## 3. Decisões técnicas
+
+A solução foi estruturada em três camadas principais: `application`, `domain` e `infrastructure`. Essa divisão foi adotada para manter as regras de negócio independentes de detalhes de framework e banco de dados.
+
+- A camada `application` concentra as requests HTTP. Ela contém controllers, DTOs e mappers. A decisão de usar DTOs explícitos e mappers foi importante para não expor a entidade de domínio diretamente na resposta da API.
+
+- A camada `domain` contém a entidade `Project`, o `service` e o contrato abstrato de repositório. A entidade foi mantida com comportamento próprio, como favoritar, desfavoritar, aplicar atualizações e validar as datas. Essa escolha evita espalhar regras em vários pontos da aplicação e garante consistência dos dados em qualquer fluxo que chame a entidade de domínio.
+
+- O `repository` foi implementado em duas camadas. No domínio, existe o contrato abstrato `ProjectRepository` que define quais operações estão disponíveis. Na infraestrutura, a classe `ProjectTypeormRepository` implementa esse contrato e orquestra a conversão entre a entidade de domínio (`Project`) e a entidade de persistência (`ProjectEntity`). Essa separação garante que o serviço de aplicação e a entidade de negócio nunca dependem dos detalhes técnicos de TypeORM, respeitando o princípio de inversão de dependência. Se no futuro precisar trocar o ORM ou o banco, apenas a implementação do repositório muda, sem impacto no domínio.
+
+A API foi protegida com um `ApiKeyGuard` simples, validando o header `x-api-key`. Para o escopo do desafio, essa opção foi suficiente e mais objetiva do que implementar uma autenticação completa, que adicionaria complexidade sem trazer ganho proporcional ao problema proposto.
+
+Nos testes, houve uma separação entre unitários e integração.
+
+- Os testes unitários validam o `ProjectService` e as regras de domínio com mocks do repositório.
+
+- Já os testes de integração tem o fluxo real entre `controller`, `guard`, `service`, `repository` e banco. A decisão de não mockar `service` ou `repository` nesses testes foi proposital, já que nos testes de integração, o objetivo é validar o comportamento entre componentes reais, e não apenas o comportamento isolado de uma classe.
+
+Para evitar impacto no ambiente de desenvolvimento, os testes de integração rodam com um PostgreSQL separado, levantado por um `docker-compose` específico para teste. O ambiente é inicializado por `setup.ts` e encerrado por `teardown.ts`, isolando e dando mais previsibilidade nos ambientes locais ou no CI.
+
+## 4. Estrutura do projeto
+
+```text
+project-manager-api/
+├── src/
+│   ├── app.module.ts
+│   ├── main.ts
+│   ├── application/
+│   │   └── projects/
+│   │       ├── project.module.ts
+│   │       ├── controllers/
+│   │       │   ├── project.controller.ts
+│   │       │   └── test/
+│   │       │       └── project.controller.int-spec.ts
+│   │       ├── dtos/
+│   │       │   ├── create-project.dto.ts
+│   │       │   ├── update-project.dto.ts
+│   │       │   ├── list-project.dto.ts
+│   │       │   ├── project-response.dto.ts
+│   │       │   └── list-project-response.dto.ts
+│   │       └── mappers/
+│   │           └── project.mapper.ts
+│   ├── domain/
+│   │   └── projects/
+│   │       ├── entities/
+│   │       │   └── project.entity.ts
+│   │       ├── repositories/
+│   │       │   └── project.repository.ts
+│   │       └── services/
+│   │           ├── project.service.ts
+│   │           └── test/
+│   │               └── project.service.spec.ts
+│   └── infrastructure/
+│       ├── infrastructure.module.ts
+│       ├── configuration/
+│       │   └── configuration.module.ts
+│       ├── database/
+│       │   ├── data-source.ts
+│       │   ├── database.module.ts
+│       │   └── typeorm/
+│       │       ├── entities/
+│       │       │   └── project.entity.ts
+│       │       ├── migrations/
+│       │       │   └── 1775874354343-create-projects.ts
+│       │       └── repositories/
+│       │           └── project.repository.ts
+│       ├── guards/
+│       │   └── api-key.guard.ts
+│       ├── health/
+│       │   ├── health.controller.ts
+│       │   └── health.module.ts
+│       └── logging/
+│           ├── logging.interceptor.ts
+│           └── logging.module.ts
+├── test/
+│   ├── app.e2e-spec.ts
+│   ├── env.setup.ts
+│   ├── jest-e2e.json
+│   ├── jest-int.json
+│   ├── setup.ts
+│   └── teardown.ts
+├── docker-compose.yaml
+├── docker-compose.test.yaml
+├── .env
+├── .env.test
+└── package.json
 ```
 
-## Compile and run the project
+Essa estrutura foi pensada para deixar explícita a separação entre domínio, aplicação e infraestrutura, além de manter os testes próximos das implementações.
+
+## 5. API
+
+Os principais endpoints expostos pela aplicação são:
+
+- `POST /projects`
+- `GET /projects`
+- `GET /projects/:id`
+- `PATCH /projects/:id`
+- `DELETE /projects/:id`
+
+A listagem suporta filtros e ordenação por query params. Entre os parâmetros aceitos estão `search`, `favoritesOnly` e `sort`, além de paginação quando aplicável.
+
+## 6. Execução local
+
+Faça a remoção do sufixo `.example` do arquivo `.env.example` e configure as variáveis de ambiente conforme necessário. Depois execute os seguintes comandos para rodar a aplicação localmente:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+docker compose up -d
+npm run migration:run
+npm run start:dev
 ```
 
-## Run tests
+---
+
+## 7. Testes
+
+Os testes foram divididos em duas categorias:
+
+### Unitários
+
+Focados no serviço de domínio e nas regras de negócio.
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm test
+npm run test
 ```
 
-## Deployment
+### Integração
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Executam a API com banco rodando num Docker Compose isolado.
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run test:int
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Essa separação evita que testes de integração dependam de mocks e garante validação do fluxo completo da aplicação.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## 8. Cobertura do escopo da API
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+A API cobre os itens centrais esperados no desafio:
 
-## Support
+- Listagem inicial
+- Total de projetos
+- Filtro por favoritos
+- Ordenação por critérios definidos
+- Criação
+- Edição
+- Remoção
+- Favoritar e desfavoritar
+- Busca com mínimo de 3 caracteres
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 8. Observabilidade
 
-## Stay in touch
+A aplicação tem uma estratégia simples e útil de observabilidade, sem ampliar desnecessariamente o escopo do desafio. A decisão foi implementar logs em JSON, identificação por `requestId` e registro de informações como: tempo de resposta, método, rota e status.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+A escolha por uma solução leve foi para manter a simplicidade. Para o contexto deste projeto, o objetivo principal é permitir rastreabilidade e depuração eficiente em ambiente local e em CI, sem introduzir complexidade adicional com ferramentas de tracing ou métricas.
 
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+O `requestId` permite correlacionar logs da mesma requisição ao longo do fluxo da aplicação. O interceptor de logging registra o início e o término das requisições, além de capturar erros com contexto suficiente para um entendimento rápido.
