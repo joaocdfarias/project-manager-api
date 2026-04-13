@@ -1,11 +1,17 @@
 import { Module } from '@nestjs/common';
-import { ConfigurationModule } from './infrastructure/configuration/configuration.module';
-import { DatabaseModule } from './infrastructure/database/database.module';
-import { HealthModule } from './infrastructure/health/health.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ProjectsModule } from './application/projects/project.module';
+import { ApiKeyGuard } from './infrastructure/guards/api-key.guard';
+import { InfrastructureModule } from './infrastructure/infrastructure.module';
 
 @Module({
-  imports: [ConfigurationModule, DatabaseModule, HealthModule],
+  imports: [InfrastructureModule, ProjectsModule],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ApiKeyGuard,
+    },
+  ],
 })
 export class AppModule {}
