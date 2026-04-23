@@ -1,0 +1,14 @@
+name: Keep alive
+
+on:
+  schedule:
+    - cron: '*/12 * * * *'
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  curl-website:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run cURL on Website
+        run: curl -I https://project-manager-api-3xr1.onrender.com
